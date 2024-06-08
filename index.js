@@ -1,62 +1,59 @@
 const fs = require('fs');
 const path = require('path');
-const login = require('./fb-chat-api/index');
+const login = require('./fca/index');
 const express = require('express');
 const app = express();
 const chalk = require('chalk');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-const script = path.join(__dirname, 'script');
+const modules = path.join(__dirname, 'modules');
 const moment = require("moment-timezone");
 const cron = require('node-cron');
-const config = fs.existsSync('./data') && fs.existsSync('./data/config.json') ? JSON.parse(fs.readFileSync('./data/config.json', 'utf8')) : creatqeConfig();
+const config = fs.existsSync('./data') && fs.existsSync('./data/config.json') ? JSON.parse(fs.readFileSync('./data/config.json', 'utf8')) : createConfig();
 const Utils = new Object({
 	commands: new Map(),
 	handleEvent: new Map(),
 	account: new Map(),
 	cooldowns: new Map(),
 });
-fs.readdirSync(script).forEach((file) => {
-	const scripts = path.join(script, file);
-	const stats = fs.statSync(scripts);
+fs.readdirSync(modules).forEach((file) => {
+	const modules = path.join(modules, file);
+	const stats = fs.statSync(modules);
 	if (stats.isDirectory()) {
-		fs.readdirSync(scripts).forEach((file) => {
+		fs.readdirSync(modules).forEach((file) => {
 			try {
 				const {
 					config,
 					run,
 					handleEvent
-				} = require(path.join(scripts, file));
+				} = require(path.join(modules, file));
 				if (config) {
 					const {
-						name = [], role = '0', version = '1.0.0', hasPrefix = true, aliases = [], description = '', usage = '', credits = '', cooldown = '5'
+						name = [], access = 0, needPrefix = true, alts = [], info = '', usage = '', cd = '5'
 					} = Object.fromEntries(Object.entries(config).map(([key, value]) => [key.toLowerCase(), value]));
 					aliases.push(name);
 					if (run) {
 						Utils.commands.set(aliases, {
 							name,
-							role,
+							access,
 							run,
-							aliases,
-							description,
+							alts,
+							info,
 							usage,
-							version,
-							hasPrefix: config.hasPrefix,
-							credits,
-							cooldown
+							needPrefix: config.needPrefix,
+							cd
 						});
 					}
 					if (handleEvent) {
 						Utils.handleEvent.set(aliases, {
 							name,
 							handleEvent,
-							role,
-							description,
+							access,
+							infocmd,
 							usage,
-							version,
-							hasPrefix: config.hasPrefix,
+							needPrefix: config.needPrefix,
 							credits,
-							cooldown
+							cd
 						});
 					}
 				}
@@ -70,37 +67,35 @@ fs.readdirSync(script).forEach((file) => {
 				config,
 				run,
 				handleEvent
-			} = require(scripts);
+			} = require(modules);
 			if (config) {
 				const {
-					name = [], role = '0', version = '1.0.0', hasPrefix = true, aliases = [], description = '', usage = '', credits = '', cooldown = '5'
+					name = [], access = 0, needPrefix = true, alts = [], info = '', usage = '', cd = '5'
 				} = Object.fromEntries(Object.entries(config).map(([key, value]) => [key.toLowerCase(), value]));
 				aliases.push(name);
 				if (run) {
-					Utils.commands.set(aliases, {
+					Utils.commands.set(alts, {
 						name,
-						role,
+						access,
 						run,
-						aliases,
-						description,
+						alts,
+						info,
 						usage,
-						version,
-						hasPrefix: config.hasPrefix,
+						needPrefix: config.needPrefix,
 						credits,
-						cooldown
+						cd
 					});
 				}
 				if (handleEvent) {
-					Utils.handleEvent.set(aliases, {
+					Utils.handleEvent.set(alts, {
 						name,
 						handleEvent,
-						role,
-						description,
+						access,
+						info,
 						usage,
-						version,
-						hasPrefix: config.hasPrefix,
+						needPrefix: config.needPrefix,
 						credits,
-						cooldown
+						cd
 					});
 				}
 			}
@@ -119,33 +114,9 @@ const routes = [{
 	path: '/step_by_step_guide',
 	file: 'guide.html'
 }, {
-	path: '/online_user',
-	file: 'online.html'
-},{
-	path: '/contact',
-	file: 'contact.html'
-},{
-	path: '/random_shoti',
-	file: 'shoti.html'
-}, {
-	path: '/analog',
-	file: 'analog.html'
-}, {
-	path: '/clock',
-	file: 'clock.html'
-},{
-	path: '/time',
-	file: 'crazy.html'
-},{
-	path: '/developer',
-	file: 'developer.html'
-},{
-	path: '/random',
-	file: 'random.html'
-},{
-	path: '/spotify',
-	file: 'spotify.html'
-}, ];
+	path: '/active_user',
+	file: 'active.html'
+} ];
 routes.forEach(route => {
 	app.get(route.path, (req, res) => {
 		res.sendFile(path.join(__dirname, 'public', route.file));
@@ -168,17 +139,17 @@ app.get('/commands', (req, res) => {
 	const handleEvent = [...Utils.handleEvent.values()].map(({
 		name
 	}) => command.has(name) ? null : (command.add(name), name)).filter(Boolean);
-	const role = [...Utils.commands.values()].map(({
+	const access = [...Utils.commands.values()].map(({
 		role
-	}) => (command.add(role), role));
-	const aliases = [...Utils.commands.values()].map(({
-		aliases
-	}) => (command.add(aliases), aliases));
+	}) => (command.add(access), access));
+	const alts = [...Utils.commands.values()].map(({
+		alts
+	}) => (command.add(alts), alts));
 	res.json(JSON.parse(JSON.stringify({
 		commands,
 		handleEvent,
-		role,
-		aliases
+		access,
+		alts
 	}, null, 2)));
 });
 app.post('/login', async (req, res) => {
@@ -232,60 +203,7 @@ app.post('/login', async (req, res) => {
 });
 const port = process.env.PORT || 10000;
 app.listen(port, () => {
-	console.log(`
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⠿⠛⢉⣉⣠⣤⣤⣤⣴⣦⣤⣤⣀⡉⠙⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⠋⢁⣴⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣦⡀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⡟⠁⣰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⠿⠿⠂⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⡟⠀⣼⣿⣿⡏⢉⣁⣀⣀⣤⣤⣄⠀⣴⣿⣿⡇⢠⣶⣶⠒⠲⡆⢀⠈⢿⣿⣿⣿⣿⣿⣿⣿
-⣿⠁⣼⣿⣿⣿⠀⢿⣿⣿⣏⣀⣹⠟⢀⣿⣿⣿⣷⡈⠛⠿⠃⢀⣠⣿⣆⠈⣿⣿⣿⣿⣿⣿⣿
-⡇⢠⣿⣿⣿⣿⣧⣀⠉⠛⠛⠉⣁⣠⣾⣿⣿⣿⣿⣿⣷⣶⠾⠿⠿⣿⣿⡄⢸⣿⣿⣿⣿⣿⣿
-⡇⢸⣿⣿⣿⣿⡿⠿⠟⠛⠛⠛⢉⣉⣉⣉⣉⣩⣤⣤⣤⣤⠀⣴⣶⣿⣿⡇⠀⣿⣿⣿⣿⣿⣿
-⠅⢸⣿⣿⣿⣷⣶⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠇⢸⣿⣿⣿⠃⢸⣿⣿⣿⠛⢻⣿
-⣇⠈⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠉⣿⡟⢀⣾⣿⠟⠁⣰⣿⣿⣿⡿⠀⠸⣿
-⣿⣆⠀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠏⠀⠙⣠⣾⠟⠁⣠⣾⣿⣿⣿⣿⠀⣶⠂⣽
-⣿⣿⣷⣄⡈⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⣴⠆⠀⠋⢀⣴⣿⣿⡿⠟⠛⠉⠀⢂⣡⣾⣿
-⣿⣿⣿⣿⣿⠇⢀⣄⣀⡉⠉⠉⠉⠉⠉⣉⠤⠈⢁⣤⣶⠀⠾⠟⣋⡡⠔⢊⣠⣴⣾⣿⣿⣿⣿
-⣿⣿⣿⣿⠏⢠⣿⣿⡿⠛⢋⣠⠴⠚⢉⣥⣴⣾⣿⣿⣿⠀⠴⠛⣉⣤⣶⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⡏⢀⣿⣿⣯⠴⠛⠉⣠⣴⣾⣿⣿⣿⣿⣿⣿⣿⠀⣴⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⡟⠀⣼⣿⣿⣧⣤⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⠃⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⡟⠀⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⠃⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣷⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱
-
-███████╗██╗░░░██╗░█████╗░██╗░░██╗
-██╔════╝██║░░░██║██╔══██╗██║░██╔╝
-█████╗░░██║░░░██║██║░░╚═╝█████═╝░
-██╔══╝░░██║░░░██║██║░░██╗██╔═██╗░
-██║░░░░░╚██████╔╝╚█████╔╝██║░╚██╗
-╚═╝░░░░░░╚═════╝░░╚════╝░╚═╝░░╚═╝
-
-██╗░░░██╗░█████╗░██╗░░░██╗
-╚██╗░██╔╝██╔══██╗██║░░░██║
-░╚████╔╝░██║░░██║██║░░░██║
-░░╚██╔╝░░██║░░██║██║░░░██║
-░░░██║░░░╚█████╔╝╚██████╔╝
-░░░╚═╝░░░░╚════╝░░╚═════╝░ 
-
-"✖ [░░░░░░░░░░░░░░░]",
-"✖ [■░░░░░░░░░░░░░░]",
-"✖ [■■░░░░░░░░░░░░░]",
-"✖ [■■■░░░░░░░░░░░░]",
-"✖ [■■■■░░░░░░░░░░░]",
-"✖ [■■■■■░░░░░░░░░░]",
-"✖ [■■■■■■░░░░░░░░░]",
-"✖ [■■■■■■■░░░░░░░░]",
-"✖ [■■■■■■■■░░░░░░░]",
-"✖ [■■■■■■■■■░░░░░░]",
-"✖ [■■■■■■■■■■░░░░░]",
-"✖ [■■■■■■■■■■■░░░░]",
-"✖ [■■■■■■■■■■■■░░░]",
-"✖ [■■■■■■■■■■■■■░░]",
-"✖ [■■■■■■■■■■■■■■░]",
-"✖ [■■■■■■■■■■■■■■■]"
-${port}`);
+	console.log(`${port}`);
 });
 process.on('unhandledRejection', (reason) => {
 	console.error('Unhandled Promise Rejection:', reason);
@@ -355,22 +273,31 @@ async function accountLogin(state, enableCommands = [], prefix, admin = []) {
 					let data = Array.isArray(database) ? database.find(item => Object.keys(item)[0] === event?.threadID) : {};
 					let adminIDS = data ? database : createThread(event.threadID, api);
 					let blacklist = (JSON.parse(fs.readFileSync('./data/history.json', 'utf-8')).find(blacklist => blacklist.userid === userid) || {}).blacklist || [];
-					let hasPrefix = (event.body && aliases((event.body || '')?.trim().toLowerCase().split(/ +/).shift())?.hasPrefix == false) ? '' : prefix;
-					let [command, ...args] = ((event.body || '').trim().toLowerCase().startsWith(hasPrefix?.toLowerCase()) ? (event.body || '').trim().substring(hasPrefix?.length).trim().split(/\s+/).map(arg => arg.trim()) : []);
-					if (hasPrefix && aliases(command)?.hasPrefix === false) {
-						api.sendMessage(`Invalid usage this command doesn't need a prefix`, event.threadID, event.messageID);
+					let needPrefix = (event.body && aliases((event.body || '')?.trim().toLowerCase().split(/ +/).shift())?.needPrefix == false) ? '' : prefix;
+					let [command, ...args] = ((event.body || '').trim().toLowerCase().startsWith(needPrefix?.toLowerCase()) ? (event.body || '').trim().substring(needPrefix?.length).trim().split(/\s+/).map(arg => arg.trim()) : []);
+					if (needPrefix && alts(command)?.needPrefix === false) {
+						api.sendMessage(`Invalid usage! This command doesn't need a prefix`, event.threadID, event.messageID);
 						return;
 					}
-					if (event.body && aliases(command)?.name) {
-						const role = aliases(command)?.role ?? 0;
+					if (event.body && alts(command)?.name) {
+						const access = alts(command)?.access ?? 0;
 						const isAdmin = config?.[0]?.masterKey?.admin?.includes(event.senderID) || admin.includes(event.senderID);
 						const isThreadAdmin = isAdmin || ((Array.isArray(adminIDS) ? adminIDS.find(admin => Object.keys(admin)[0] === event.threadID) : {})?.[event.threadID] || []).some(admin => admin.id === event.senderID);
-						if ((role == 1 && !isAdmin) || (role == 2 && !isThreadAdmin) || (role == 3 && !config?.[0]?.masterKey?.admin?.includes(event.senderID))) {
-							api.sendMessage(`You don't have permission to use this command.`, event.threadID, event.messageID);
+						if ((access == 1 && !isAdmin) || (access == 2 && !isThreadAdmin) || (access == 3 && !config?.[0]?.masterKey?.admin?.includes(event.senderID))) {
+							api.sendMessage(`You don't have access to use this command.`, event.threadID, event.messageID);
 							return;
 						}
 					}
-					if (event.body && event.body?.toLowerCase().startsWith(prefix.toLowerCase()) && aliases(command)?.name) {
+					if (event.body && event.body?.toLowerCase().startsWith(prefix.toLowerCase()) && alts(command)?.name) {
+
+                    const cooldown = cd(command)?.cd ?? 0; 
+    
+                    if ((currentTime - (lastExecution[senderID] || 0)) < cooldown * 1000) {
+                    const timeLeft = cooldown - Math.floor((currentTime - (lastExecution[senderID] || 0)) / 1000);
+                            api.sendMessage(`Command ${name} is on cooldown. Please wait ${timeLeft} second${timeLeft > 1 ? 's' : ''}.`);
+        return;
+    }
+					if (event.body && event.body?.toLowerCase().startsWith(prefix.toLowerCase()) && alts(command)?.name) {
 						if (blacklist.includes(event.senderID)) {
 							api.sendMessage("We're sorry, but you've been banned from using bot. If you believe this is a mistake or would like to appeal, please contact one of the bot admins for further assistance.", event.threadID, event.messageID);
 							return;
@@ -394,7 +321,7 @@ async function accountLogin(state, enableCommands = [], prefix, admin = []) {
 							const { threadID } = event;
 
 					if (event.logMessageData.addedParticipants && Array.isArray(event.logMessageData.addedParticipants) && event.logMessageData.addedParticipants.some(i => i.userFbId == userid)) {
-					api.changeNickname(`》 ${prefix} 《 ➠ 𝘽𝙤𝙩`, threadID, userid);
+					api.changeNickname(`𝙺𝙰𝚉𝙴𝚄𝙱𝙾𝚃`, threadID, userid);
 
 let gifUrls = [
 	'https://i.imgur.com/209z0iM.mp4',
@@ -417,9 +344,9 @@ let gifPath = __dirname + '/cache/connected.mp4';
 axios.get(gifUrl, { responseType: 'arraybuffer' })
 		.then(response => {
 				fs.writeFileSync(gifPath, response.data); 
-				return api.sendMessage("𝗖𝗢𝗡𝗡𝗘𝗖𝗧𝗜𝗡𝗚...", event.threadID, () => 
+				return api.sendMessage("Connecting...", event.threadID, () => 
 						api.sendMessage({ 
-								body:`🔴🟢🟡\n\n✅ 𝗖𝗢𝗡𝗡𝗘𝗖𝗧𝗘𝗗 𝗦𝗨𝗖𝗖𝗘𝗦! \n➭ Bot Prefix: ${prefix}\n➭ Admin: ‹𝙆𝙖𝙞𝙯𝙪›\n➭ Facebook: ‹https://www.facebook.com/kaizu.ui›\n➭ Use ${prefix}help to view command details\n➭ Added bot at: ⟨ ${time} ⟩〈 ${thu} 〉`, 
+								body:`CONNECTED SUCCESS!\n➭ Bot Prefix: ${prefix}\n Admin: ‹Kaizu›\n Use ${prefix}help to view command details\n Added bot at: ⟨ ${time} ⟩〈 ${thu} 〉`, 
 								attachment: fs.createReadStream(gifPath)
 						}, event.threadID)
 				);
@@ -543,7 +470,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 															return api.sendMessage("The file is too large, cannot be sent", event.threadID, () => fs.unlinkSync(path), event.messageID);
 													}
 
-													const messageBody = `𝖠𝗎𝗍𝗈 𝖣𝗈𝗐𝗇 Instagram`;
+													const messageBody = `Auto Down Instagram`;
 													api.sendMessage({
 															body: messageBody,
 															attachment: fs.createReadStream(path)
@@ -562,7 +489,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 						 const regEx_tiktok = /https:\/\/(www\.|vt\.)?tiktok\.com\//;
 						 const link = event.body;
 																if (regEx_tiktok.test(link)) {
-																	api.setMessageReaction("🚀", event.messageID, () => { }, true);
+																	api.setMessageReaction("👾", event.messageID, () => { }, true);
 																	axios.post(`https://www.tikwm.com/api/`, {
 																		url: link
 																	}).then(async response => { // Added async keyword
@@ -583,7 +510,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 																				console.log('Downloaded video file.');
 
 																				api.sendMessage({
-																					body: `Auto Down Tiktok\n\nContent: ${data.title}\n\nLikes: ${data.digg_count}\n\nComments: ${data.comment_count}`,
+																					body: `Auto Down TikTok \n\nContent: ${data.title}\n\nLikes: ${data.digg_count}\n\nComments: ${data.comment_count}`,
 																					attachment: fs.createReadStream(filePath)
 																				}, event.threadID, () => {
 																					fs.unlinkSync(filePath);  // Delete the video file after sending it
@@ -667,7 +594,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 
 																		console.log(`Sending message with file "${fileName}"...`);
 																		// Use the fs.promises version for file reading
-																		await api.sendMessage({ body: `Auto Down Google Drive link\n\nFilename: ${fileName}\n`, attachment: fs.createReadStream(destPath) }, event.threadID);
+																		await api.sendMessage({ body: `Auto Down Google Drive Link \n\nFilename: ${fileName}`, attachment: fs.createReadStream(destPath) }, event.threadID);
 
 																		console.log(`Deleting file "${fileName}"...`);
 																		await fs.promises.unlink(destPath);
@@ -709,7 +636,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 
 													file.on('finish', () => {
 														file.close(() => {
-															api.sendMessage({ body: `Auto Down YouTube`, attachment: fs.createReadStream(filePath) }, event.threadID, () => fs.unlinkSync(filePath));
+															api.sendMessage({ body: `𝖠𝗎𝗍𝗈 𝖣𝗈𝗐𝗇 𝖸𝗈𝗎𝖳𝗎𝖻𝖾`, attachment: fs.createReadStream(filePath) }, event.threadID, () => fs.unlinkSync(filePath));
 														});
 													});
 												})
@@ -731,7 +658,7 @@ const yawa = lubot[Math.floor(Math.random() * lubot.length)];
 																	const result = await getFBInfo(url);
 																	let videoData = await axios.get(encodeURI(result.sd), { responseType: 'arraybuffer' });
 																	fs.writeFileSync(fbvid, Buffer.from(videoData.data, "utf-8"));
-																	return api.sendMessage({ body: "𝖠𝗎𝗍𝗈 𝖣own Fb Video", attachment: fs.createReadStream(fbvid) }, event.threadID, () => fs.unlinkSync(fbvid));
+																	return api.sendMessage({ body: "Auto Down Facebook Video", attachment: fs.createReadStream(fbvid) }, event.threadID, () => fs.unlinkSync(fbvid));
 																}
 																catch (e) {
 																	return console.log(e);
@@ -873,7 +800,7 @@ function aliases(command) {
 }
 async function main() {
 	const empty = require('fs-extra');
-	const cacheFile = './script/cache';
+	const cacheFile = './modules/cache';
 	if (!fs.existsSync(cacheFile)) fs.mkdirSync(cacheFile);
 	const configFile = './data/history.json';
 	if (!fs.existsSync(configFile)) fs.writeFileSync(configFile, '[]', 'utf-8');
